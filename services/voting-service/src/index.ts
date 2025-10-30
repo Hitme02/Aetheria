@@ -37,72 +37,70 @@ app.get('/health', (_req: Request, res: Response) => {
 app.post('/vote', async (req: Request, res: Response) => {
   try {
     const { artworkId, voterWallet } = req.body;
-
     if (!artworkId || !voterWallet) {
-      return res.status(400).json({
-        error: 'Missing artworkId or voterWallet'
-      });
+      return res.status(400).json({ error: 'Missing artworkId or voterWallet' });
+    }
+
+    // Basic auth check: require Authorization header token
+    const authHeader = req.headers['authorization'] || '';
+    const token = Array.isArray(authHeader) ? authHeader[0] : authHeader;
+    const bearer = token.startsWith('Bearer ') ? token.slice(7) : '';
+    if (!bearer) {
+      return res.status(401).json({ error: 'Unauthorized: missing auth token' });
+    }
+    // MVP validation: if wallet vote, token must match wallet (case-insensitive)
+    if (String(voterWallet).toLowerCase().startsWith('0x') && bearer.toLowerCase() !== String(voterWallet).toLowerCase()) {
+      return res.status(401).json({ error: 'Unauthorized: token does not match wallet' });
     }
 
     // Check if user already voted
-    const { data: existingVote, error: checkError } = await supabase
+    const { data: existingVote } = await supabase
       .from('votes')
       .select('*')
       .eq('artwork_id', artworkId)
       .eq('user_wallet', voterWallet.toLowerCase())
       .single();
-
-    if (existingVote) {
-      return res.status(400).json({
-        error: 'Already voted for this artwork'
-      });
-    }
-
-    // Insert vote
-    const { data: vote, error: insertError } = await supabase
-      .from('votes')
-      .insert({
+    let action;
+    if (!existingVote) {
+      // Add vote
+      await supabase.from('votes').insert({
         artwork_id: artworkId,
         user_wallet: voterWallet.toLowerCase()
-      })
-      .select()
-      .single();
-
-    if (insertError) {
-      console.error('Error inserting vote:', insertError);
-      return res.status(500).json({ error: 'Failed to record vote' });
+      });
+      // Increment vote_count
+      const { data: artwork } = await supabase
+        .from('artworks')
+        .select('vote_count')
+        .eq('id', artworkId)
+        .single();
+      await supabase
+        .from('artworks')
+        .update({ vote_count: (artwork?.vote_count || 0) + 1 })
+        .eq('id', artworkId);
+      action = 'added';
+      console.info('Vote added for artwork:', artworkId, 'by', voterWallet);
+    } else {
+      // Remove vote
+      await supabase
+        .from('votes')
+        .delete()
+        .eq('artwork_id', artworkId)
+        .eq('user_wallet', voterWallet.toLowerCase());
+      const { data: artwork } = await supabase
+        .from('artworks')
+        .select('vote_count')
+        .eq('id', artworkId)
+        .single();
+      await supabase
+        .from('artworks')
+        .update({ vote_count: Math.max((artwork?.vote_count || 1) - 1, 0) })
+        .eq('id', artworkId);
+      action = 'removed';
+      console.info('Vote removed for artwork:', artworkId, 'by', voterWallet);
     }
-
-    // Increment vote_count on artwork: only fallback fetch+update
-    const { data: artwork, error: fetchError } = await supabase
-      .from('artworks')
-      .select('vote_count')
-      .eq('id', artworkId)
-      .single();
-
-    if (fetchError || !artwork) {
-      console.error('Failed to fetch artwork for vote count update', fetchError);
-      return res.status(500).json({ error: 'Failed to fetch artwork for vote count update', detail: fetchError });
-    }
-
-    const { error: incrementError } = await supabase
-      .from('artworks')
-      .update({ vote_count: (artwork.vote_count || 0) + 1 })
-      .eq('id', artworkId);
-
-    if (incrementError) {
-      console.error('Failed to increment vote count', incrementError);
-      return res.status(500).json({ error: 'Failed to increment vote count', detail: incrementError });
-    }
-
-    console.info('Vote and increment successful for artwork:', artworkId);
-
-    res.json({
-      success: true,
-      vote
-    });
+    res.json({ success: true, action });
   } catch (error) {
-    console.error('Error recording vote:', error);
+    console.error('Error toggling vote:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -162,6 +160,19 @@ app.get('/votes/:artworkId', async (req: Request, res: Response) => {
     console.error('Error fetching vote count:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
+});
+
+app.get('/has-voted', async (req: Request, res: Response) => {
+  const artworkId = (req.query.artwork as string) || '';
+  const wallet = (req.query.wallet as string) || '';
+  if (!artworkId || !wallet) return res.json({ hasVoted: false });
+  const { data } = await supabase
+    .from('votes')
+    .select('id')
+    .eq('artwork_id', artworkId)
+    .eq('user_wallet', wallet.toLowerCase())
+    .maybeSingle();
+  res.json({ hasVoted: !!data });
 });
 
 app.get('/artwork/:id', async (req, res) => {

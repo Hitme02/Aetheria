@@ -1,8 +1,14 @@
 import { ConnectButton } from '@rainbow-me/rainbowkit';
-import { Link, NavLink } from 'react-router-dom';
+import { Link, NavLink, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
+import { isLoggedIn, logout } from '../lib/auth';
 
 export default function NavBar() {
+  const navigate = useNavigate();
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
+  };
   return (
     <header className="sticky top-0 z-30 backdrop-blur supports-[backdrop-filter]:bg-base/80 border-b border-white/10 shadow-[0_1px_30px_rgba(124,247,240,0.1)]">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
@@ -66,6 +72,14 @@ export default function NavBar() {
         </nav>
         <div className="flex items-center gap-3">
           <ConnectButton showBalance={false} label="Connect" accountStatus={{ smallScreen: 'avatar', largeScreen: 'full' }} />
+          {isLoggedIn() && (
+            <button
+              onClick={handleLogout}
+              className="px-3 py-1.5 rounded-md border border-white/10 bg-card/30 hover:bg-card/50 text-sm text-gray-200"
+            >
+              Logout
+            </button>
+          )}
         </div>
       </div>
     </header>

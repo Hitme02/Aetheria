@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAccount } from 'wagmi';
 import { votingGet, votingPost } from '../lib/api';
 import { getLoggedInWallet } from '../lib/auth';
+import { useLocation, useNavigate } from 'react-router-dom';
 
 type Artwork = { 
   id: number; 
@@ -19,6 +20,8 @@ export default function Gallery() {
   const { address } = useAccount();
   const loggedInWallet = getLoggedInWallet();
   const voterWallet = loggedInWallet?.startsWith('0x') ? loggedInWallet : address || '';
+  const navigate = useNavigate();
+  const location = useLocation();
   
   const { data } = useQuery({
     queryKey: ['artworks'],
@@ -28,7 +31,8 @@ export default function Gallery() {
   const vote = useMutation({
     mutationFn: (id: number) => {
       if (!voterWallet || voterWallet === '0x') {
-        throw new Error('Please connect your wallet or log in to vote');
+        navigate('/login', { state: { from: location.pathname } });
+        throw new Error('LOGIN_REDIRECT');
       }
       return votingPost('/vote', { artworkId: id, voterWallet });
     },
@@ -43,9 +47,11 @@ export default function Gallery() {
       return { prev };
     },
     onError: (error: any, _id, ctx) => {
+      // Revert optimistic update
       ctx?.prev && qc.setQueryData(['artworks'], ctx.prev);
       let msg: string;
       try { msg = error?.message || error?.error || String(error); } catch { msg = 'Unknown voting error'; }
+      if (msg === 'LOGIN_REDIRECT') return; // no toast; we already redirected
       window.dispatchEvent(new CustomEvent('aetheria:toast', { detail: `Voting failed: ${msg}` } as any));
     },
     onSettled: () => qc.invalidateQueries({ queryKey: ['artworks'] })

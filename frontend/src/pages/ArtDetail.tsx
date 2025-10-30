@@ -1,9 +1,9 @@
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate, useLocation } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { votingGet, mintPost, votingPost } from '../lib/api';
-import { formatWallet, getLoggedInWallet } from '../lib/auth';
-import { useState } from 'react';
+import { formatWallet, getLoggedInWallet, isLoggedIn } from '../lib/auth';
+import { useState, useEffect } from 'react';
 import { fadeInUp } from '../lib/animations';
 import Comments from '../components/Comments';
 import ShareButtons from '../components/ShareButtons';
@@ -24,9 +24,12 @@ type Artwork = {
 
 export default function ArtDetail() {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+  const location = useLocation();
   const [minting, setMinting] = useState(false);
   const qc = useQueryClient();
   const [voteLoading, setVoteLoading] = useState(false);
+  const [voteCount, setVoteCount] = useState<number | null>(null);
   const [hasVoted, setHasVoted] = useState(false);
 
   const creatorWallet = getLoggedInWallet();
@@ -41,16 +44,36 @@ export default function ArtDetail() {
     enabled: !!id,
   });
 
+  useEffect(() => {
+    if (!artwork) return;
+    setVoteCount(artwork.vote_count);
+    if (!creatorWallet) { setHasVoted(false); return; }
+    (async () => {
+      try {
+        const base = import.meta.env.VITE_API_VOTING_BASE;
+        const res = await fetch(`${base}/has-voted?artwork=${artwork.id}&wallet=${creatorWallet}`);
+        if (res.ok) {
+          const json = await res.json();
+          setHasVoted(!!json.hasVoted);
+        } else {
+          setHasVoted(false);
+        }
+      } catch {
+        setHasVoted(false);
+      }
+    })();
+  }, [artwork?.id, creatorWallet]);
+
   const isEligibleForMint = artwork && artwork.vote_count >= 10 && !artwork.minted;
   const canMint = creatorWallet && creatorWallet.toLowerCase() === artwork?.creator_wallet?.toLowerCase();
 
   const vote = useMutation({
     mutationFn: async () => {
-      if (!getLoggedInWallet() || getLoggedInWallet() === '0x') throw new Error('Please log in or connect your wallet');
+      if (!creatorWallet || creatorWallet === '0x') throw new Error('Please log in or connect your wallet');
       setVoteLoading(true);
-      await votingPost('/vote', { artworkId: artwork.id, voterWallet: getLoggedInWallet() });
+      const response = await votingPost('/vote', { artworkId: artwork.id, voterWallet: creatorWallet });
       setVoteLoading(false);
-      setHasVoted(true);
+      return response;
     },
     onError: (error: any) => {
       setVoteLoading(false);
@@ -58,10 +81,16 @@ export default function ArtDetail() {
       try { msg = error?.message || error?.error || String(error); } catch { msg = 'Unknown voting error'; }
       window.dispatchEvent(new CustomEvent('aetheria:toast', { detail: `Voting failed: ${msg}` } as any));
     },
-    onSuccess: () => {
-      window.dispatchEvent(new CustomEvent('aetheria:toast', { detail: 'Vote recorded!' } as any));
+    onSuccess: (response) => {
+      if (response.action === 'added') {
+        setHasVoted(true);
+        setVoteCount(c => (typeof c === 'number' ? c+1 : 1));
+      } else if (response.action === 'removed') {
+        setHasVoted(false);
+        setVoteCount(c => Math.max(0, (typeof c === 'number' ? c-1 : 0)));
+      }
       qc.invalidateQueries(['artwork', id]);
-    }
+    },
   });
 
   const handleMint = async () => {
@@ -177,7 +206,7 @@ export default function ArtDetail() {
         <div className="grid grid-cols-2 gap-4 p-4 bg-card/30 rounded-xl border border-white/10 backdrop-blur-sm">
           <div>
             <div className="text-sm text-gray-400 mb-1">Votes</div>
-            <div className="text-2xl font-bold text-accent">{artwork.vote_count}</div>
+            <div className="text-2xl font-bold text-accent">{voteCount ?? artwork.vote_count}</div>
           </div>
           <div>
             <div className="text-sm text-gray-400 mb-1">Status</div>
@@ -193,14 +222,24 @@ export default function ArtDetail() {
           </div>
         </div>
 
-        {creatorWallet && !hasVoted && (
+        {creatorWallet && (
           <motion.button
             whileTap={{ scale: 0.93 }}
             className="w-full px-4 py-2 mt-4 bg-accent text-black rounded-lg font-bold disabled:opacity-70"
-            disabled={voteLoading || hasVoted}
-            onClick={() => vote.mutate()}
+            disabled={voteLoading}
+            onClick={() => {
+              if (!isLoggedIn()) {
+                navigate('/login', { state: { from: location.pathname } });
+                return;
+              }
+              vote.mutate();
+            }}
           >
-            {voteLoading ? 'Voting...' : 'Vote for this Artwork'}
+            {voteLoading
+              ? (hasVoted ? 'Unvoting...' : 'Voting...')
+              : (!isLoggedIn())
+                ? 'Login to Vote'
+                : hasVoted ? 'Unvote' : 'Vote for this Artwork'}
           </motion.button>
         )}
 

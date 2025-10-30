@@ -47,3 +47,9 @@ export function getArtistName(address: string | null | undefined): string {
   return formatWallet(address);
 }
 
+export function logout(): void {
+  try {
+    localStorage.removeItem('aetheria_token');
+  } catch {}
+}
+
