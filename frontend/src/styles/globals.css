@@ -1,0 +1,72 @@
+@import './theme.css';
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+html, body, #root { height: 100%; }
+body { background-color: var(--color-base); color: #e5e7eb; }
+.glass { @apply bg-white/5 backdrop-blur-lg border border-white/10 shadow-glow; }
+/* Reduced opacity for better visibility - 20% less black */
+.focus-ring { @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-base; }
+
+/* Enhanced background animations - GPU accelerated */
+@keyframes float-slow {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33% { transform: translate(50px, -50px) scale(1.1); }
+  66% { transform: translate(-40px, 40px) scale(0.9); }
+}
+
+@keyframes float-slower {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33% { transform: translate(-60px, 50px) scale(1.15); }
+  66% { transform: translate(45px, -45px) scale(0.85); }
+}
+
+@keyframes float-slowest {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(30px, 30px) scale(1.08); }
+}
+
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+.animate-float-slow {
+  animation: float-slow 20s ease-in-out infinite;
+  will-change: transform;
+}
+
+.animate-float-slower {
+  animation: float-slower 25s ease-in-out infinite;
+  will-change: transform;
+}
+
+.animate-float-slowest {
+  animation: float-slowest 30s ease-in-out infinite;
+  will-change: transform;
+}
+
+.animate-shimmer {
+  animation: shimmer 8s ease-in-out infinite;
+  will-change: transform;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-float-slow,
+  .animate-float-slower,
+  .animate-float-slowest,
+  .animate-shimmer {
+    animation: none;
+  }
+}

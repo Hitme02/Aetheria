@@ -1,0 +1,14 @@
+:root {
+  --color-base: #0b0d10;
+  --color-card: #0f1720;
+  --color-accent: #7cf7f0;
+  --color-highlight: #ffc857;
+  --easing-standard: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --duration-sm: 150ms;
+  --duration-md: 300ms;
+  --duration-lg: 600ms;
+}
+@media (prefers-reduced-motion: reduce) {
+  :root { --duration-md: 0ms; --duration-lg: 0ms; }
+}
+
