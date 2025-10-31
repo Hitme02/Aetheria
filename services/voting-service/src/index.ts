@@ -153,6 +153,15 @@ app.get('/featured', async (req: Request, res: Response) => {
   try {
     const n = parseInt(req.query.n as string) || 3;
 
+    // Check if Supabase is configured
+    if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      return res.status(500).json({ 
+        error: 'Supabase not configured',
+        details: 'SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set',
+        hint: 'Check environment variables on Render'
+      });
+    }
+
     const { data: artworks, error } = await supabase
       .from('artworks')
       .select('*')
@@ -164,7 +173,7 @@ app.get('/featured', async (req: Request, res: Response) => {
       return res.status(500).json({ 
         error: 'Failed to fetch featured artworks',
         details: error.message,
-        hint: 'Check Supabase connection and table permissions'
+        hint: 'Check Supabase connection and table permissions. Verify SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are set correctly.'
       });
     }
 
@@ -175,9 +184,15 @@ app.get('/featured', async (req: Request, res: Response) => {
     });
   } catch (error: any) {
     console.error('Error fetching featured:', error);
+    const errorMessage = error?.message || 'Unknown error';
+    const isNetworkError = errorMessage.includes('fetch failed') || errorMessage.includes('ECONNREFUSED');
+    
     res.status(500).json({ 
       error: 'Internal server error',
-      details: error?.message || 'Unknown error'
+      details: errorMessage,
+      hint: isNetworkError 
+        ? 'Cannot connect to Supabase. Check SUPABASE_URL and network connectivity.'
+        : 'Check service logs for more details'
     });
   }
 });

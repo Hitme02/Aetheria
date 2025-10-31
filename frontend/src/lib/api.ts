@@ -22,7 +22,10 @@ export async function apiFetch<T>(path: string, init?: RequestInit, base: string
   if (token) {
     (headers as Record<string, string>).Authorization = `Bearer ${token}`;
   }
-  const url = path.startsWith('http') ? path : `${base}${path}`;
+  // Normalize URL: remove trailing slash from base and leading slash from path
+  const normalizedBase = base.replace(/\/+$/, ''); // Remove trailing slashes
+  const normalizedPath = path.replace(/^\/+/, ''); // Remove leading slashes
+  const url = path.startsWith('http') ? path : `${normalizedBase}/${normalizedPath}`;
   
   // Validate URL before making request
   if (!url || url === path) {

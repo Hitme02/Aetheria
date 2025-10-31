@@ -75,14 +75,28 @@ export default function Gallery() {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
     const isConnectionError = errorMessage.toLowerCase().includes('timeout') || 
                               errorMessage.toLowerCase().includes('network') ||
-                              errorMessage.toLowerCase().includes('invalid api url');
+                              errorMessage.toLowerCase().includes('invalid api url') ||
+                              errorMessage.toLowerCase().includes('supabase');
+    const isSupabaseError = errorMessage.toLowerCase().includes('supabase') ||
+                           errorMessage.toLowerCase().includes('fetch failed');
     
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="text-center max-w-md">
           <p className="text-red-400 text-lg mb-2">Failed to load gallery</p>
           <p className="text-gray-400 text-sm mb-4">{errorMessage}</p>
-          {isConnectionError && (
+          {isSupabaseError && (
+            <div className="bg-white/5 rounded-lg p-4 mb-4 text-left">
+              <p className="text-yellow-400 text-sm font-semibold mb-2">Supabase Connection Issue:</p>
+              <ul className="text-gray-400 text-xs space-y-1 list-disc list-inside">
+                <li>Voting service cannot connect to Supabase</li>
+                <li>Check SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY on Render</li>
+                <li>Verify Supabase credentials are correct</li>
+                <li>Ensure artworks table exists in Supabase</li>
+              </ul>
+            </div>
+          )}
+          {isConnectionError && !isSupabaseError && (
             <div className="bg-white/5 rounded-lg p-4 mb-4 text-left">
               <p className="text-yellow-400 text-sm font-semibold mb-2">Possible issues:</p>
               <ul className="text-gray-400 text-xs space-y-1 list-disc list-inside">
