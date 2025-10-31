@@ -38,6 +38,23 @@ const upload = multer({
 });
 
 /**
+ * GET /
+ * Root endpoint with service information
+ */
+app.get('/', (_req: Request, res: Response) => {
+  res.json({
+    service: 'upload-service',
+    status: 'running',
+    version: '1.0.0',
+    endpoints: {
+      health: 'GET /health',
+      upload: 'POST /upload (multipart/form-data)'
+    },
+    timestamp: new Date().toISOString()
+  });
+});
+
+/**
  * GET /health
  * Health check endpoint
  */

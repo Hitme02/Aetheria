@@ -24,6 +24,24 @@ const nonceStore = new Map<string, { nonce: string; expires: number }>();
 const NONCE_EXPIRY = 5 * 60 * 1000; // 5 minutes
 
 /**
+ * GET /
+ * Root endpoint with service information
+ */
+app.get('/', (_req: Request, res: Response) => {
+  res.json({
+    service: 'auth-service',
+    status: 'running',
+    version: '1.0.0',
+    endpoints: {
+      health: 'GET /health',
+      nonce: 'GET /nonce?wallet=0x...',
+      verify: 'POST /verify'
+    },
+    timestamp: new Date().toISOString()
+  });
+});
+
+/**
  * GET /health
  * Health check endpoint
  */

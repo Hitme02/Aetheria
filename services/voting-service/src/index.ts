@@ -39,6 +39,26 @@ const supabase = createClient(
 })();
 
 /**
+ * GET /
+ * Root endpoint with service information
+ */
+app.get('/', (_req: Request, res: Response) => {
+  res.json({
+    service: 'voting-service',
+    status: 'running',
+    version: '1.0.0',
+    endpoints: {
+      health: 'GET /health',
+      featured: 'GET /featured?n=12',
+      vote: 'POST /vote',
+      artwork: 'GET /artwork/:id',
+      hasVoted: 'GET /has-voted?artwork=:id&wallet=:wallet'
+    },
+    timestamp: new Date().toISOString()
+  });
+});
+
+/**
  * GET /health
  * Health check endpoint
  */

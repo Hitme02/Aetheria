@@ -30,6 +30,23 @@ const CONTRACT_ABI = [
 ];
 
 /**
+ * GET /
+ * Root endpoint with service information
+ */
+app.get('/', (_req: Request, res: Response) => {
+  res.json({
+    service: 'mint-service',
+    status: 'running',
+    version: '1.0.0',
+    endpoints: {
+      health: 'GET /health',
+      mint: 'POST /mint (requires auth token)'
+    },
+    timestamp: new Date().toISOString()
+  });
+});
+
+/**
  * GET /health
  * Health check endpoint
  */

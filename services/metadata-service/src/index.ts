@@ -26,6 +26,24 @@ if (process.env.WEB3_STORAGE_TOKEN) {
 }
 
 /**
+ * GET /
+ * Root endpoint with service information
+ */
+app.get('/', (_req: Request, res: Response) => {
+  res.json({
+    service: 'metadata-service',
+    status: 'running',
+    version: '1.0.0',
+    endpoints: {
+      health: 'GET /health',
+      createMetadata: 'POST /metadata',
+      getMetadata: 'GET /metadata/:artworkId'
+    },
+    timestamp: new Date().toISOString()
+  });
+});
+
+/**
  * GET /health
  * Health check endpoint
  */
