@@ -44,10 +44,11 @@ export async function apiFetch<T>(path: string, init?: RequestInit, base: string
       
       // If we got HTML back, it means we hit the wrong server (likely frontend dev server)
       if (isHTML && text.includes('<!DOCTYPE html>')) {
+        const serviceName = base.includes('auth') ? 'auth' : base.includes('voting') ? 'voting' : 'API';
         throw new Error(
           `Received HTML response instead of JSON. The API endpoint may not exist or the base URL is incorrect. ` +
           `Expected API URL: ${url}. ` +
-          `Check that VITE_API_VOTING_BASE is set correctly and the voting service is running.`
+          `Check that VITE_API_${serviceName.toUpperCase()}_BASE is set correctly and the ${serviceName} service is running.`
         );
       }
       

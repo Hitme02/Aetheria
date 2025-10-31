@@ -9,21 +9,41 @@ export default function LoginCard() {
 
   const login = async () => {
     if (!address) return;
-    setStatus('Requesting nonce...');
-    const { nonce } = await authGet<{ nonce: string }>(`/nonce?wallet=${address}`);
-    const message = `Sign this message to authenticate with Aetheria:\nNonce: ${nonce}`;
-    setStatus('Awaiting signature...');
-    const signature = await signMessageAsync({ message });
-    setStatus('Verifying...');
-    const res = await authPost<{ success: boolean; user: any }>(`/verify`, { wallet: address, signature });
-    if ((res as any).success !== false) {
-      localStorage.setItem('aetheria_token', address);
-      setStatus('Logged in');
-      window.dispatchEvent(new CustomEvent('aetheria:toast', { detail: 'Login success' } as any));
-      // Redirect to gallery after successful login
-      setTimeout(() => {
-        window.location.href = '/gallery';
-      }, 1000);
+    
+    try {
+      setStatus('Requesting nonce...');
+      const { nonce } = await authGet<{ nonce: string }>(`/nonce?wallet=${address}`);
+      
+      if (!nonce) {
+        setStatus('Error: No nonce received');
+        window.dispatchEvent(new CustomEvent('aetheria:toast', { detail: 'Failed to get nonce' } as any));
+        return;
+      }
+      
+      const message = `Sign this message to authenticate with Aetheria:\nNonce: ${nonce}`;
+      setStatus('Awaiting signature...');
+      const signature = await signMessageAsync({ message });
+      
+      setStatus('Verifying...');
+      const res = await authPost<{ success: boolean; user: any }>(`/verify`, { wallet: address, signature });
+      
+      if ((res as any).success !== false) {
+        localStorage.setItem('aetheria_token', address);
+        setStatus('Logged in');
+        window.dispatchEvent(new CustomEvent('aetheria:toast', { detail: 'Login success' } as any));
+        // Redirect to gallery after successful login
+        setTimeout(() => {
+          window.location.href = '/gallery';
+        }, 1000);
+      } else {
+        setStatus('Verification failed');
+        window.dispatchEvent(new CustomEvent('aetheria:toast', { detail: 'Login failed' } as any));
+      }
+    } catch (error: any) {
+      console.error('Login error:', error);
+      const errorMsg = error?.message || 'Login failed. Check console for details.';
+      setStatus(`Error: ${errorMsg}`);
+      window.dispatchEvent(new CustomEvent('aetheria:toast', { detail: errorMsg } as any));
     }
   };
 

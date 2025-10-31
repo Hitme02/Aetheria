@@ -24,16 +24,19 @@ const supabase = createClient(
 );
 
 // Test Supabase connection on startup
-supabase.from('artworks').select('id').limit(1).then(({ error }) => {
-  if (error) {
-    console.error('❌ Failed to connect to Supabase:', error.message);
-    console.error('   Make sure the artworks table exists and service role key has access');
-  } else {
-    console.log('✅ Connected to Supabase');
+(async () => {
+  try {
+    const { error } = await supabase.from('artworks').select('id').limit(1);
+    if (error) {
+      console.error('❌ Failed to connect to Supabase:', error.message);
+      console.error('   Make sure the artworks table exists and service role key has access');
+    } else {
+      console.log('✅ Connected to Supabase');
+    }
+  } catch (err: any) {
+    console.error('❌ Supabase connection error:', err);
   }
-}).catch(err => {
-  console.error('❌ Supabase connection error:', err);
-});
+})();
 
 /**
  * GET /health
