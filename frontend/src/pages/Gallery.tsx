@@ -23,9 +23,12 @@ export default function Gallery() {
   const navigate = useNavigate();
   const location = useLocation();
   
-  const { data } = useQuery({
+  const { data, isLoading, error } = useQuery({
     queryKey: ['artworks'],
-    queryFn: () => votingGet<{ count: number; artworks: Artwork[] }>(`/featured?n=12`).then(r => ({ artworks: r.artworks }))
+    queryFn: () => votingGet<{ count: number; artworks: Artwork[] }>(`/featured?n=12`).then(r => ({ artworks: r.artworks })),
+    retry: 1,
+    retryDelay: 2000,
+    staleTime: 30000, // Consider data fresh for 30 seconds
   });
 
   const vote = useMutation({
@@ -57,9 +60,69 @@ export default function Gallery() {
     onSettled: () => qc.invalidateQueries({ queryKey: ['artworks'] })
   });
 
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-accent mb-4"></div>
+          <p className="text-gray-400">Loading gallery...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+    const isConnectionError = errorMessage.toLowerCase().includes('timeout') || 
+                              errorMessage.toLowerCase().includes('network') ||
+                              errorMessage.toLowerCase().includes('invalid api url');
+    
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center max-w-md">
+          <p className="text-red-400 text-lg mb-2">Failed to load gallery</p>
+          <p className="text-gray-400 text-sm mb-4">{errorMessage}</p>
+          {isConnectionError && (
+            <div className="bg-white/5 rounded-lg p-4 mb-4 text-left">
+              <p className="text-yellow-400 text-sm font-semibold mb-2">Possible issues:</p>
+              <ul className="text-gray-400 text-xs space-y-1 list-disc list-inside">
+                <li>Voting service is not running</li>
+                <li>Check VITE_API_VOTING_BASE environment variable</li>
+                <li>Verify service is accessible at the configured URL</li>
+              </ul>
+            </div>
+          )}
+          <button
+            onClick={() => window.location.reload()}
+            className="px-4 py-2 bg-accent text-black rounded-lg font-medium hover:bg-highlight transition-colors duration-200"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!data?.artworks || data.artworks.length === 0) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <p className="text-gray-400 text-xl mb-2">Gallery is empty</p>
+          <p className="text-gray-500 text-sm mb-4">Be the first to upload artwork!</p>
+          <button
+            onClick={() => navigate('/upload')}
+            className="px-6 py-3 bg-accent text-black rounded-lg font-medium hover:bg-highlight transition-colors duration-200"
+          >
+            Upload Artwork
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="grid gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-      {data?.artworks?.map(a => (
+      {data.artworks.map(a => (
         <ArtworkCard 
           key={a.id} 
           id={a.id} 
@@ -70,7 +133,7 @@ export default function Gallery() {
           minted={a.minted}
           tokenId={a.token_id}
           onVote={() => vote.mutate(a.id)}
-          onOpen={(id) => window.location.href = `/art/${id}`}
+          onOpen={(id) => navigate(`/art/${id}`)}
         />
       ))}
     </div>

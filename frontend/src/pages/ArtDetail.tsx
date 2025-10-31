@@ -42,6 +42,9 @@ export default function ArtDetail() {
       return response.artwork;
     },
     enabled: !!id,
+    retry: 1,
+    retryDelay: 2000,
+    staleTime: 30000,
   });
 
   useEffect(() => {
@@ -50,14 +53,12 @@ export default function ArtDetail() {
     if (!creatorWallet) { setHasVoted(false); return; }
     (async () => {
       try {
-        const base = import.meta.env.VITE_API_VOTING_BASE;
-        const res = await fetch(`${base}/has-voted?artwork=${artwork.id}&wallet=${creatorWallet}`);
-        if (res.ok) {
-          const json = await res.json();
-          setHasVoted(!!json.hasVoted);
-        } else {
-          setHasVoted(false);
-        }
+        const params = new URLSearchParams({
+          artwork: String(artwork.id),
+          wallet: creatorWallet
+        });
+        const response = await votingGet<{ hasVoted: boolean }>(`/has-voted?${params.toString()}`);
+        setHasVoted(!!response.hasVoted);
       } catch {
         setHasVoted(false);
       }
@@ -123,15 +124,50 @@ export default function ArtDetail() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="text-gray-400">Loading artwork...</div>
+        <div className="text-center">
+          <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-accent mb-4"></div>
+          <p className="text-gray-400">Loading artwork...</p>
+        </div>
       </div>
     );
   }
 
   if (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const isConnectionError = errorMessage.toLowerCase().includes('timeout') || 
+                              errorMessage.toLowerCase().includes('network') ||
+                              errorMessage.toLowerCase().includes('invalid api url');
+    
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="text-red-400">Error: {error.message || String(error)}</div>
+        <div className="text-center max-w-md">
+          <p className="text-red-400 text-lg mb-2">Failed to load artwork</p>
+          <p className="text-gray-400 text-sm mb-4">{errorMessage}</p>
+          {isConnectionError && (
+            <div className="bg-white/5 rounded-lg p-4 mb-4 text-left">
+              <p className="text-yellow-400 text-sm font-semibold mb-2">Possible issues:</p>
+              <ul className="text-gray-400 text-xs space-y-1 list-disc list-inside">
+                <li>Voting service is not running</li>
+                <li>Check VITE_API_VOTING_BASE environment variable</li>
+                <li>Verify service is accessible at the configured URL</li>
+              </ul>
+            </div>
+          )}
+          <div className="flex gap-4 justify-center">
+            <button
+              onClick={() => window.location.reload()}
+              className="px-4 py-2 bg-accent text-black rounded-lg font-medium hover:bg-highlight transition-colors duration-200"
+            >
+              Retry
+            </button>
+            <Link
+              to="/gallery"
+              className="px-4 py-2 bg-white/10 text-white rounded-lg font-medium hover:bg-white/20 transition-colors duration-200"
+            >
+              Back to Gallery
+            </Link>
+          </div>
+        </div>
       </div>
     );
   }

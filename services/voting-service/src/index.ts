@@ -13,10 +13,27 @@ app.use(cors());
 app.use(express.json());
 
 // Supabase client
+if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+  console.error('❌ Missing Supabase configuration! SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set.');
+  process.exit(1);
+}
+
 const supabase = createClient(
-  process.env.SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY
 );
+
+// Test Supabase connection on startup
+supabase.from('artworks').select('id').limit(1).then(({ error }) => {
+  if (error) {
+    console.error('❌ Failed to connect to Supabase:', error.message);
+    console.error('   Make sure the artworks table exists and service role key has access');
+  } else {
+    console.log('✅ Connected to Supabase');
+  }
+}).catch(err => {
+  console.error('❌ Supabase connection error:', err);
+});
 
 /**
  * GET /health
@@ -121,16 +138,24 @@ app.get('/featured', async (req: Request, res: Response) => {
 
     if (error) {
       console.error('Error fetching featured artworks:', error);
-      return res.status(500).json({ error: 'Failed to fetch featured artworks' });
+      return res.status(500).json({ 
+        error: 'Failed to fetch featured artworks',
+        details: error.message,
+        hint: 'Check Supabase connection and table permissions'
+      });
     }
 
+    // Always return success even if empty array
     res.json({
       count: artworks?.length || 0,
       artworks: artworks || []
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error fetching featured:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ 
+      error: 'Internal server error',
+      details: error?.message || 'Unknown error'
+    });
   }
 });
 
@@ -176,14 +201,42 @@ app.get('/has-voted', async (req: Request, res: Response) => {
 });
 
 app.get('/artwork/:id', async (req, res) => {
-  const { id } = req.params;
-  const { data, error } = await supabase
-    .from('artworks')
-    .select('*')
-    .eq('id', (Number.isFinite(Number(id)) ? Number(id) : id))
-    .single();
-  if (error || !data) return res.status(404).json({ error: 'Artwork not found' });
-  res.json({ artwork: data });
+  try {
+    const { id } = req.params;
+    
+    if (!id) {
+      return res.status(400).json({ error: 'Artwork ID is required' });
+    }
+
+    // Handle both UUID and numeric IDs
+    const idValue = Number.isFinite(Number(id)) && !id.includes('-') ? Number(id) : id;
+    
+    const { data, error } = await supabase
+      .from('artworks')
+      .select('*')
+      .eq('id', idValue)
+      .single();
+
+    if (error) {
+      console.error('Error fetching artwork:', error);
+      return res.status(404).json({ 
+        error: 'Artwork not found',
+        details: error.message
+      });
+    }
+
+    if (!data) {
+      return res.status(404).json({ error: 'Artwork not found' });
+    }
+
+    res.json({ artwork: data });
+  } catch (error: any) {
+    console.error('Error in /artwork/:id:', error);
+    res.status(500).json({ 
+      error: 'Internal server error',
+      details: error?.message || 'Unknown error'
+    });
+  }
 });
 
 app.listen(PORT, () => {

@@ -23,12 +23,56 @@ export async function apiFetch<T>(path: string, init?: RequestInit, base: string
     (headers as Record<string, string>).Authorization = `Bearer ${token}`;
   }
   const url = path.startsWith('http') ? path : `${base}${path}`;
-  const res = await fetch(url, { ...init, headers });
-  if (!res.ok) {
-    const text = await res.text().catch(() => '');
-    throw new Error(text || `Request failed: ${res.status}`);
+  
+  // Validate URL before making request
+  if (!url || url === path) {
+    throw new Error(`Invalid API URL: base is empty. Check VITE_API_* environment variables.`);
   }
-  return res.json() as Promise<T>;
+  
+  // Create AbortController for timeout
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+  
+  try {
+    const res = await fetch(url, { ...init, headers, signal: controller.signal });
+    clearTimeout(timeoutId);
+    
+    if (!res.ok) {
+      const contentType = res.headers.get('content-type') || '';
+      const isHTML = contentType.includes('text/html');
+      const text = await res.text().catch(() => '');
+      
+      // If we got HTML back, it means we hit the wrong server (likely frontend dev server)
+      if (isHTML && text.includes('<!DOCTYPE html>')) {
+        throw new Error(
+          `Received HTML response instead of JSON. The API endpoint may not exist or the base URL is incorrect. ` +
+          `Expected API URL: ${url}. ` +
+          `Check that VITE_API_VOTING_BASE is set correctly and the voting service is running.`
+        );
+      }
+      
+      // Try to parse as JSON, otherwise use text
+      let errorMsg = text;
+      try {
+        const json = JSON.parse(text);
+        errorMsg = json.error || json.message || text;
+      } catch {
+        // Not JSON, use text as-is
+      }
+      
+      throw new Error(errorMsg || `Request failed: ${res.status} ${res.statusText}`);
+    }
+    return res.json() as Promise<T>;
+  } catch (error: any) {
+    clearTimeout(timeoutId);
+    if (error.name === 'AbortError') {
+      throw new Error(`Request timeout: API at ${url} did not respond within 10 seconds. Is the service running?`);
+    }
+    if (error.message) {
+      throw error;
+    }
+    throw new Error(`Network error: ${error.message || 'Failed to connect to API'}`);
+  }
 }
 
 export async function apiUpload<T>(path: string, formData: FormData, init?: RequestInit, base: string = API_UPLOAD_BASE) {
