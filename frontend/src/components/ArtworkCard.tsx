@@ -15,7 +15,7 @@ type Props = {
 };
 
 export default function ArtworkCard({ id, title, imageUrl, votes, creatorWallet, minted, tokenId, onVote, onOpen }: Props) {
-  const isEligibleForMint = votes >= 10 && !minted;
+  const isEligibleForMint = votes >= 3 && !minted;
   const [hasVoted, setHasVoted] = useState(false);
 
   const handleVote = (e: React.MouseEvent) => {

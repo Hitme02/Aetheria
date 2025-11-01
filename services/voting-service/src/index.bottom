@@ -1,6 +1,0 @@
-app.listen(PORT, () => {
-  console.log(`🗳️  Voting service running on port ${PORT}`);
-});
-
-export default app;
-

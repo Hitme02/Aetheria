@@ -14,6 +14,7 @@ type Artwork = {
   image_url: string;
   vote_count: number;
   minted: boolean;
+  token_id?: number;
   created_at: string;
 };
 
@@ -192,6 +193,8 @@ export default function Profile() {
               imageUrl={artwork.image_url}
               votes={artwork.vote_count}
               creatorWallet={wallet}
+              minted={artwork.minted}
+              tokenId={artwork.token_id}
             />
           ))
         )}

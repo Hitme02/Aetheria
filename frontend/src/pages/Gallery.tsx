@@ -43,11 +43,22 @@ export default function Gallery() {
       await qc.cancelQueries({ queryKey: ['artworks'] });
       const prev = qc.getQueryData<{ artworks: Artwork[] }>(['artworks']);
       if (prev) {
-        qc.setQueryData(['artworks'], {
-          artworks: prev.artworks.map(a => a.id === id ? { ...a, vote_count: a.vote_count + 1 } : a)
-        });
+        qc.setQueryData(['artworks'], prev);
       }
       return { prev };
+    },
+    onSuccess: (response, id) => {
+      // Update based on action (added or removed)
+      const prev = qc.getQueryData<{ artworks: Artwork[] }>(['artworks']);
+      if (prev && response.action) {
+        qc.setQueryData(['artworks'], {
+          artworks: prev.artworks.map(a => 
+            a.id === id 
+              ? { ...a, vote_count: response.action === 'added' ? a.vote_count + 1 : Math.max(0, a.vote_count - 1) }
+              : a
+          ).sort((a, b) => b.vote_count - a.vote_count) // Re-sort by vote count
+        });
+      }
     },
     onError: (error: any, _id, ctx) => {
       // Revert optimistic update

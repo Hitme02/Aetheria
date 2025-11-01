@@ -5,7 +5,7 @@ Metadata creation and IPFS pinning service for Aetheria.
 ## Features
 
 - Build artwork metadata JSON
-- Pin metadata to IPFS via Web3.Storage
+- Generate metadata URI for NFTs
 - Update database with metadata URI
 
 ## API Endpoints
@@ -44,7 +44,6 @@ Get metadata for an artwork.
 - `PORT`: Service port (default: 4003)
 - `SUPABASE_URL`: Supabase project URL
 - `SUPABASE_SERVICE_ROLE_KEY`: Supabase service role key
-- `WEB3_STORAGE_TOKEN`: Web3.Storage API token (optional)
 
 ## Development
 

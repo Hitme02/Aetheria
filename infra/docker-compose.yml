@@ -51,7 +51,6 @@ services:
       - PORT=4003
       - SUPABASE_URL=${SUPABASE_URL}
       - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
-      - WEB3_STORAGE_TOKEN=${WEB3_STORAGE_TOKEN}
     env_file:
       - .env
     healthcheck:
@@ -75,6 +74,7 @@ services:
       - PRIVATE_KEY=${PRIVATE_KEY}
       - CONTRACT_ADDRESS=${CONTRACT_ADDRESS}
       - MINTER_AUTH_TOKEN=${MINTER_AUTH_TOKEN}
+      - METADATA_SERVICE_URL=http://metadata-service:4003
     env_file:
       - .env
     healthcheck:
@@ -94,6 +94,7 @@ services:
       - PORT=4005
       - SUPABASE_URL=${SUPABASE_URL}
       - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+      - RPC_URL=${RPC_URL}
     env_file:
       - .env
     healthcheck:

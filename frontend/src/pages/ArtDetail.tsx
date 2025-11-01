@@ -65,7 +65,7 @@ export default function ArtDetail() {
     })();
   }, [artwork?.id, creatorWallet]);
 
-  const isEligibleForMint = artwork && artwork.vote_count >= 10 && !artwork.minted;
+  const isEligibleForMint = artwork && artwork.vote_count >= 3 && !artwork.minted;
   const canMint = creatorWallet && creatorWallet.toLowerCase() === artwork?.creator_wallet?.toLowerCase();
 
   const vote = useMutation({
@@ -80,9 +80,16 @@ export default function ArtDetail() {
       setVoteLoading(false);
       let msg: string;
       try { msg = error?.message || error?.error || String(error); } catch { msg = 'Unknown voting error'; }
+      
+      // If user already voted, update hasVoted state
+      if (msg.includes('already voted') || error?.hasVoted) {
+        setHasVoted(true);
+      }
+      
       window.dispatchEvent(new CustomEvent('aetheria:toast', { detail: `Voting failed: ${msg}` } as any));
     },
     onSuccess: (response) => {
+      // Handle both vote addition and removal
       if (response.action === 'added') {
         setHasVoted(true);
         setVoteCount(c => (typeof c === 'number' ? c+1 : 1));
@@ -249,7 +256,7 @@ export default function ArtDetail() {
             <div className="text-lg font-semibold">
               {artwork.minted ? (
                 <span className="text-highlight">Minted</span>
-              ) : artwork.vote_count >= 10 ? (
+              ) : artwork.vote_count >= 3 ? (
                 <span className="text-accent">Eligible</span>
               ) : (
                 <span className="text-gray-400">Pending Review</span>
@@ -261,7 +268,7 @@ export default function ArtDetail() {
         {creatorWallet && (
           <motion.button
             whileTap={{ scale: 0.93 }}
-            className="w-full px-4 py-2 mt-4 bg-accent text-black rounded-lg font-bold disabled:opacity-70"
+            className="w-full px-4 py-2 mt-4 bg-accent text-black rounded-lg font-bold disabled:opacity-70 disabled:cursor-not-allowed"
             disabled={voteLoading}
             onClick={() => {
               if (!isLoggedIn()) {
@@ -344,7 +351,7 @@ export default function ArtDetail() {
                 className="flex gap-4 relative z-10"
               >
                 <div className="flex flex-col items-center">
-                  <div className={`w-4 h-4 rounded-full ${artwork.vote_count >= 10 ? 'bg-highlight shadow-lg shadow-highlight/50' : 'bg-highlight/50'}`} />
+                  <div className={`w-4 h-4 rounded-full ${artwork.vote_count >= 3 ? 'bg-highlight shadow-lg shadow-highlight/50' : 'bg-highlight/50'}`} />
                   <div className={`w-0.5 h-full ${artwork.minted ? 'bg-highlight/30' : 'bg-gray-700'} mt-2`} />
                 </div>
                 <div className="flex-1 pb-6">
@@ -355,11 +362,11 @@ export default function ArtDetail() {
                   <div className="text-sm text-gray-400">
                     {artwork.vote_count} {artwork.vote_count === 1 ? 'vote' : 'votes'} received
                   </div>
-                  {artwork.vote_count >= 5 && artwork.vote_count < 10 && (
-                    <div className="text-xs text-highlight mt-1">→ {10 - artwork.vote_count} more needed for mint</div>
+                  {artwork.vote_count >= 1 && artwork.vote_count < 3 && (
+                    <div className="text-xs text-highlight mt-1">→ {3 - artwork.vote_count} more needed for mint</div>
                   )}
                   {isEligibleForMint && (
-                    <div className="text-xs text-accent mt-1">✓ Eligible for minting (10+ votes)</div>
+                    <div className="text-xs text-accent mt-1">✓ Eligible for minting (3+ votes)</div>
                   )}
                 </div>
               </motion.div>
@@ -408,7 +415,7 @@ export default function ArtDetail() {
                 <div className="flex-1">
                   <div className="font-semibold text-gray-500 mb-1">Not Minted</div>
                   <div className="text-sm text-gray-600">
-                    Requires 10+ votes to mint
+                    Requires 3+ votes to mint
                   </div>
                 </div>
               </motion.div>

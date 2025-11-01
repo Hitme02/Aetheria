@@ -8,7 +8,7 @@ This guide explains how to deploy Aetheria to production.
 - **Backend Services**: Render (5 microservices)
 - **Database**: Supabase (PostgreSQL + Auth + Storage)
 - **Blockchain**: Polygon Testnet (Amoy)
-- **Storage**: Supabase Storage + IPFS (Web3.Storage)
+- **Storage**: Supabase Storage
 
 ## 📋 Prerequisites
 
@@ -16,7 +16,6 @@ This guide explains how to deploy Aetheria to production.
 2. **Vercel Account**: For frontend deployment
 3. **Render Account**: For backend services
 4. **Supabase Project**: For database and storage
-5. **Web3.Storage Account**: For IPFS pinning (optional)
 6. **Polygon Wallet**: With AMOY testnet tokens
 
 ## 🚀 Deployment Steps
@@ -164,7 +163,6 @@ curl http://localhost:4005/health
 
 ### Services
 - [ ] MINTER_AUTH_TOKEN (secure random string)
-- [ ] WEB3_STORAGE_TOKEN (optional)
 
 ## 🔒 Security Notes
 

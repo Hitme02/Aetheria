@@ -30,7 +30,6 @@ Aetheria is built as a microservices architecture with the following components:
 - Docker and Docker Compose
 - Supabase account
 - Polygon testnet wallet with AMOY tokens
-- Web3.Storage account (optional, for IPFS)
 
 ### Local Development
 
@@ -99,7 +98,6 @@ Key variables:
 - `RPC_URL` - Polygon testnet RPC endpoint
 - `MINTER_PRIVATE_KEY` - Wallet private key for minting
 - `CONTRACT_ADDRESS` - Deployed NFT contract address
-- `WEB3_STORAGE_TOKEN` - Web3.Storage API token
 
 ## 🧪 Testing
 

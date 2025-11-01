@@ -2,6 +2,7 @@ import express, { Request, Response } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import { createClient } from '@supabase/supabase-js';
+import { ethers } from 'ethers';
 
 dotenv.config();
 
@@ -22,6 +23,22 @@ const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
+
+// Ethereum provider for balance checking
+let provider: ethers.JsonRpcProvider | null = null;
+if (process.env.RPC_URL) {
+  try {
+    provider = new ethers.JsonRpcProvider(process.env.RPC_URL);
+    console.log('✅ Ethereum provider initialized');
+  } catch (err: any) {
+    console.warn('⚠️  Failed to initialize Ethereum provider:', err.message);
+  }
+} else {
+  console.warn('⚠️  RPC_URL not set - ETH balance checking will be disabled');
+}
+
+// Minimum ETH balance required to vote (0.01 ETH)
+const MIN_BALANCE_ETH = '0.01';
 
 // Test Supabase connection on startup
 (async () => {
@@ -72,7 +89,7 @@ app.get('/health', (_req: Request, res: Response) => {
 
 /**
  * POST /vote
- * Record a vote for an artwork
+ * Record or remove a vote for an artwork (toggle behavior)
  */
 app.post('/vote', async (req: Request, res: Response) => {
   try {
@@ -93,61 +110,117 @@ app.post('/vote', async (req: Request, res: Response) => {
       return res.status(401).json({ error: 'Unauthorized: token does not match wallet' });
     }
 
-    // Check if user already voted
+    // Check if wallet address is valid
+    const normalizedWallet = voterWallet.toLowerCase();
+    if (!normalizedWallet.startsWith('0x') || !ethers.isAddress(normalizedWallet)) {
+      return res.status(400).json({ error: 'Invalid wallet address' });
+    }
+
+    // Check ETH balance if provider is available
+    if (provider) {
+      try {
+        const balance = await provider.getBalance(normalizedWallet);
+        const balanceEth = ethers.formatEther(balance);
+        const minBalance = ethers.parseEther(MIN_BALANCE_ETH);
+        
+        if (balance < minBalance) {
+          return res.status(403).json({ 
+            error: `Insufficient balance. You need at least ${MIN_BALANCE_ETH} Sepolia ETH to vote. Your balance: ${parseFloat(balanceEth).toFixed(4)} ETH` 
+          });
+        }
+      } catch (balanceError: any) {
+        console.error('Error checking balance:', balanceError);
+        // Continue with voting if balance check fails (don't block due to RPC issues)
+        console.warn('⚠️  Balance check failed, continuing with vote');
+      }
+    }
+
+    // Check if user already voted (toggle behavior)
     const { data: existingVote } = await supabase
       .from('votes')
       .select('*')
       .eq('artwork_id', artworkId)
-      .eq('user_wallet', voterWallet.toLowerCase())
-      .single();
-    let action;
-    if (!existingVote) {
+      .eq('user_wallet', normalizedWallet)
+      .maybeSingle();
+
+    let action: 'added' | 'removed';
+    
+    if (existingVote) {
+      // Remove vote (unvote)
+      const { error: deleteError } = await supabase
+        .from('votes')
+        .delete()
+        .eq('artwork_id', artworkId)
+        .eq('user_wallet', normalizedWallet);
+
+      if (deleteError) {
+        console.error('Error deleting vote:', deleteError);
+        return res.status(500).json({ error: 'Failed to remove vote' });
+      }
+
+      // Decrement vote_count
+      const { data: artwork } = await supabase
+        .from('artworks')
+        .select('vote_count')
+        .eq('id', artworkId)
+        .single();
+
+      if (artwork) {
+        await supabase
+          .from('artworks')
+          .update({ vote_count: Math.max((artwork.vote_count || 1) - 1, 0) })
+          .eq('id', artworkId);
+      }
+
+      action = 'removed';
+      console.info('🗑️  Vote removed for artwork:', artworkId, 'by', normalizedWallet);
+    } else {
       // Add vote
-      await supabase.from('votes').insert({
+      const { error: insertError } = await supabase.from('votes').insert({
         artwork_id: artworkId,
-        user_wallet: voterWallet.toLowerCase()
+        user_wallet: normalizedWallet
       });
+
+      if (insertError) {
+        // If it's a unique constraint violation, user already voted
+        if (insertError.code === '23505') {
+          return res.status(400).json({ 
+            error: 'You have already voted on this artwork',
+            hasVoted: true 
+          });
+        }
+        console.error('Error inserting vote:', insertError);
+        return res.status(500).json({ error: 'Failed to record vote' });
+      }
+
       // Increment vote_count
       const { data: artwork } = await supabase
         .from('artworks')
         .select('vote_count')
         .eq('id', artworkId)
         .single();
-      await supabase
-        .from('artworks')
-        .update({ vote_count: (artwork?.vote_count || 0) + 1 })
-        .eq('id', artworkId);
+
+      if (artwork) {
+        await supabase
+          .from('artworks')
+          .update({ vote_count: (artwork.vote_count || 0) + 1 })
+          .eq('id', artworkId);
+      }
+
       action = 'added';
-      console.info('Vote added for artwork:', artworkId, 'by', voterWallet);
-    } else {
-      // Remove vote
-      await supabase
-        .from('votes')
-        .delete()
-        .eq('artwork_id', artworkId)
-        .eq('user_wallet', voterWallet.toLowerCase());
-      const { data: artwork } = await supabase
-        .from('artworks')
-        .select('vote_count')
-        .eq('id', artworkId)
-        .single();
-      await supabase
-        .from('artworks')
-        .update({ vote_count: Math.max((artwork?.vote_count || 1) - 1, 0) })
-        .eq('id', artworkId);
-      action = 'removed';
-      console.info('Vote removed for artwork:', artworkId, 'by', voterWallet);
+      console.info('✅ Vote added for artwork:', artworkId, 'by', normalizedWallet);
     }
+
     res.json({ success: true, action });
-  } catch (error) {
-    console.error('Error toggling vote:', error);
-    res.status(500).json({ error: 'Internal server error' });
+  } catch (error: any) {
+    console.error('Error adding vote:', error);
+    res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
 
 /**
  * GET /featured?n=3
- * Get top N featured artworks by vote count
+ * Get top N featured artworks by vote count (includes minted artworks)
  */
 app.get('/featured', async (req: Request, res: Response) => {
   try {
@@ -162,6 +235,7 @@ app.get('/featured', async (req: Request, res: Response) => {
       });
     }
 
+    // Get artworks ordered by vote_count descending (includes both minted and unminted)
     const { data: artworks, error } = await supabase
       .from('artworks')
       .select('*')

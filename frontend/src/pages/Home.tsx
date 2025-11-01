@@ -30,7 +30,7 @@ const steps = [
   },
   {
     title: 'Mint as NFT',
-    description: 'Top-voted artworks (10+ votes) can be minted on-chain with full provenance.',
+    description: 'Top-voted artworks (3+ votes) can be minted on-chain with full provenance.',
   },
   {
     title: 'View Provenance',
@@ -176,7 +176,7 @@ export default function Home() {
           >
             <h3 className="text-3xl font-bold">Ready to contribute?</h3>
             <p className="text-gray-300 text-lg font-light leading-relaxed">
-              Log in and start sharing your artwork. When it gets 10+ votes, mint it as an NFT with full provenance.
+              Log in and start sharing your artwork. When it gets 3+ votes, mint it as an NFT with full provenance.
             </p>
             <Link
               to="/login"

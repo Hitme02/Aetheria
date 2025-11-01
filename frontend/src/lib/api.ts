@@ -34,7 +34,9 @@ export async function apiFetch<T>(path: string, init?: RequestInit, base: string
   
   // Create AbortController for timeout
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+  // Increased timeout for blockchain transactions (minting can take 30-60 seconds)
+  const timeoutMs = path.includes('/mint') ? 60000 : 10000;
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
   
   try {
     const res = await fetch(url, { ...init, headers, signal: controller.signal });
@@ -70,7 +72,8 @@ export async function apiFetch<T>(path: string, init?: RequestInit, base: string
   } catch (error: any) {
     clearTimeout(timeoutId);
     if (error.name === 'AbortError') {
-      throw new Error(`Request timeout: API at ${url} did not respond within 10 seconds. Is the service running?`);
+      const timeoutSeconds = timeoutMs / 1000;
+      throw new Error(`Request timeout: API at ${url} did not respond within ${timeoutSeconds} seconds. Is the service running?`);
     }
     if (error.message) {
       throw error;

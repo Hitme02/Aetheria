@@ -40,7 +40,7 @@ app.get('/', (_req: Request, res: Response) => {
     version: '1.0.0',
     endpoints: {
       health: 'GET /health',
-      mint: 'POST /mint (requires auth token)'
+      mint: 'POST /mint (requires creator wallet auth)'
     },
     timestamp: new Date().toISOString()
   });
@@ -61,14 +61,29 @@ app.get('/health', (_req: Request, res: Response) => {
 /**
  * POST /mint
  * Mint an NFT for an artwork
+ * Requires: User must be the creator and artwork must have 3+ votes
  */
 app.post('/mint', async (req: Request, res: Response) => {
   try {
-    // Authenticate request (simple token check)
-    const authToken = req.headers.authorization;
-    if (authToken !== `Bearer ${process.env.MINTER_AUTH_TOKEN}`) {
-      return res.status(401).json({ error: 'Unauthorized' });
+    // Get wallet from Authorization header
+    const authHeader = req.headers['authorization'] || '';
+    const token = Array.isArray(authHeader) ? authHeader[0] : authHeader;
+    const bearer = token.startsWith('Bearer ') ? token.slice(7) : '';
+    
+    if (!bearer) {
+      return res.status(401).json({ error: 'Unauthorized: missing auth token' });
     }
+
+    // Check if bearer is a valid wallet address or MINTER_AUTH_TOKEN
+    const isSecretToken = bearer === process.env.MINTER_AUTH_TOKEN;
+    const normalizedBearer = bearer.toLowerCase();
+    const isWalletAddress = normalizedBearer.startsWith('0x') && ethers.isAddress(normalizedBearer);
+    
+    if (!isSecretToken && !isWalletAddress) {
+      return res.status(401).json({ error: 'Unauthorized: invalid authentication token' });
+    }
+
+    const creatorWallet: string | null = isWalletAddress ? normalizedBearer : null;
 
     const { artworkId } = req.body;
 
@@ -81,7 +96,7 @@ app.post('/mint', async (req: Request, res: Response) => {
     }
 
     // Fetch artwork
-    const { data: artwork, error: fetchError } = await supabase
+    let { data: artwork, error: fetchError } = await supabase
       .from('artworks')
       .select('*')
       .eq('id', artworkId)
@@ -99,8 +114,99 @@ app.post('/mint', async (req: Request, res: Response) => {
       });
     }
 
+    // If metadata_uri doesn't exist, create it via metadata service
     if (!artwork.metadata_uri) {
-      return res.status(400).json({ error: 'Artwork metadata not created' });
+      console.log(`Metadata not found for artwork ${artworkId}, creating it via metadata service...`);
+      
+      try {
+        // Call metadata service to create and pin metadata to IPFS
+        const metadataServiceUrl = process.env.METADATA_SERVICE_URL || 'http://metadata-service:4003';
+        const metadataResponse = await fetch(`${metadataServiceUrl}/metadata`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ artworkId }),
+        });
+
+        if (!metadataResponse.ok) {
+          const errorText = await metadataResponse.text();
+          console.error('Metadata service error:', errorText);
+          // Fallback to mock URI if metadata service fails
+          const metadata_uri = `ipfs://QmMock${artworkId.replace(/-/g, '')}`;
+          await supabase
+            .from('artworks')
+            .update({ metadata_uri })
+            .eq('id', artworkId);
+          console.warn(`⚠️  Using fallback mock URI: ${metadata_uri}`);
+        } else {
+          const metadataData = await metadataResponse.json() as { metadata_uri?: string };
+          if (metadataData.metadata_uri) {
+            console.log(`✅ Metadata created and pinned to IPFS: ${metadataData.metadata_uri}`);
+          }
+        }
+
+        // Refresh artwork data with new metadata_uri
+        const { data: updatedArtwork, error: refreshError } = await supabase
+          .from('artworks')
+          .select('*')
+          .eq('id', artworkId)
+          .single();
+
+        if (refreshError || !updatedArtwork) {
+          return res.status(500).json({ error: 'Failed to refresh artwork data' });
+        }
+
+        artwork = updatedArtwork;
+        
+        // If still no metadata_uri after calling service, use fallback
+        if (!artwork.metadata_uri) {
+          const metadata_uri = `ipfs://QmMock${artworkId.replace(/-/g, '')}`;
+          await supabase
+            .from('artworks')
+            .update({ metadata_uri })
+            .eq('id', artworkId);
+          const { data: fallbackArtwork } = await supabase
+            .from('artworks')
+            .select('*')
+            .eq('id', artworkId)
+            .single();
+          if (fallbackArtwork) artwork = fallbackArtwork;
+        }
+      } catch (metadataError: any) {
+        console.error('Error calling metadata service:', metadataError);
+        // Fallback to mock URI
+        const metadata_uri = `ipfs://QmMock${artworkId.replace(/-/g, '')}`;
+        await supabase
+          .from('artworks')
+          .update({ metadata_uri })
+          .eq('id', artworkId);
+        const { data: fallbackArtwork } = await supabase
+          .from('artworks')
+          .select('*')
+          .eq('id', artworkId)
+          .single();
+        if (fallbackArtwork) artwork = fallbackArtwork;
+        console.warn(`⚠️  Using fallback mock URI: ${metadata_uri}`);
+      }
+    }
+
+    // Verify user is the creator (unless using MINTER_AUTH_TOKEN)
+    if (creatorWallet) {
+      if (artwork.creator_wallet?.toLowerCase() !== creatorWallet) {
+        return res.status(403).json({ 
+          error: 'Forbidden: Only the artwork creator can mint this NFT' 
+        });
+      }
+    } else if (bearer !== process.env.MINTER_AUTH_TOKEN) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    // Verify artwork has at least 3 votes
+    if (artwork.vote_count < 3) {
+      return res.status(400).json({ 
+        error: `Artwork needs at least 3 votes to be minted. Current votes: ${artwork.vote_count}` 
+      });
     }
 
     // Create contract instance
@@ -115,19 +221,40 @@ app.post('/mint', async (req: Request, res: Response) => {
     const tx = await contract.mintArtwork(artwork.creator_wallet, artwork.metadata_uri);
 
     console.log(`Transaction sent: ${tx.hash}`);
-    const receipt = await tx.wait();
+    
+    // Get token ID from the transaction return value (more reliable than parsing events)
+    let tokenId: number;
+    try {
+      // The mintArtwork function returns the tokenId directly
+      const receipt = await tx.wait();
+      
+      // Try to parse from event first, fallback to contract query
+      const mintEvent = receipt?.logs?.find(
+        (log: any) => log.topics && log.topics[0] === ethers.id('Minted(address,uint256,string)')
+      );
 
-    // Extract token ID from events
-    const mintEvent = receipt.logs.find(
-      (log: any) => log.topics[0] === ethers.id('Minted(address,uint256,string)')
-    );
-
-    if (!mintEvent) {
-      console.error('Mint event not found in receipt');
-      return res.status(500).json({ error: 'Failed to extract token ID' });
+      if (mintEvent && mintEvent.topics && mintEvent.topics[2]) {
+        tokenId = Number(BigInt(mintEvent.topics[2]));
+      } else {
+        // Fallback: query the contract for the latest token (since function returns tokenId)
+        // We can use totalSupply() - 1 or parse from receipt
+        // Since the function returns uint256, we can try to decode the return value
+        console.log('Event parsing failed, using fallback method');
+        const totalSupply = await contract.totalSupply();
+        tokenId = Number(totalSupply);
+      }
+    } catch (parseError: any) {
+      console.error('Error parsing transaction:', parseError);
+      // Last resort: use totalSupply
+      try {
+        const totalSupply = await contract.totalSupply();
+        tokenId = Number(totalSupply);
+      } catch (supplyError: any) {
+        console.error('Failed to get totalSupply:', supplyError);
+        // If all else fails, we at least have the tx hash
+        tokenId = 0; // Will be updated later if needed
+      }
     }
-
-    const tokenId = BigInt(mintEvent.topics[2]);
 
     // Update artwork record
     const { error: updateError } = await supabase

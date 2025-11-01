@@ -26,7 +26,7 @@ const keyConcepts = [
   {
     icon: '🪙',
     term: 'Minting Threshold',
-    definition: 'Artworks need 10+ votes to become eligible for minting. The creator can then mint it as an on-chain NFT with full provenance.',
+    definition: 'Artworks need 3+ votes to become eligible for minting. The creator can then mint it as an on-chain NFT with full provenance.',
   },
   {
     icon: '📜',
@@ -59,7 +59,7 @@ const typicalFlows = [
   {
     icon: '✅',
     title: '4) Reach threshold',
-    description: 'Once your artwork gets 10+ votes, it shows an "Eligible for Mint" badge. You (the creator) can then mint it as an NFT.',
+    description: 'Once your artwork gets 3+ votes, it shows an "Eligible for Mint" badge. You (the creator) can then mint it as an NFT.',
   },
   {
     icon: '🪙',
@@ -100,7 +100,7 @@ const faqs: FAQItem[] = [
   },
   {
     question: 'What makes an artwork "Eligible for Mint"?',
-    answer: 'An artwork becomes eligible when it receives 10 or more community votes. Only the creator (the wallet that uploaded it) can mint it.',
+    answer: 'An artwork becomes eligible when it receives 3 or more community votes. Only the creator (the wallet that uploaded it) can mint it.',
   },
   {
     question: 'Can I sell my minted NFT?',

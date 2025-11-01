@@ -2,7 +2,8 @@ import express, { Request, Response } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import { createClient } from '@supabase/supabase-js';
-import { Web3Storage } from 'web3.storage';
+// IPFS pinning can be added later - for now using mock URIs
+// import { NFTStorage, File } from 'nft.storage';
 
 dotenv.config();
 
@@ -19,11 +20,8 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-// Web3.Storage client
-let web3Storage: Web3Storage | null = null;
-if (process.env.WEB3_STORAGE_TOKEN) {
-  web3Storage = new Web3Storage({ token: process.env.WEB3_STORAGE_TOKEN });
-}
+// IPFS pinning disabled for now - using mock URIs
+// Can be enabled later by adding NFT_STORAGE_TOKEN and uncommenting the import above
 
 /**
  * GET /
@@ -95,21 +93,9 @@ app.post('/metadata', async (req: Request, res: Response) => {
       createdAt: artwork.created_at
     };
 
-    let metadata_uri: string;
-
-    if (web3Storage) {
-      // Pin to Web3.Storage
-      const file = new File([JSON.stringify(metadata)], 'metadata.json', {
-        type: 'application/json'
-      });
-
-      const cid = await web3Storage.put([file]);
-      metadata_uri = `ipfs://${cid}`;
-    } else {
-      // Fallback: Use a mock IPFS URI for local development
-      metadata_uri = `ipfs://QmMock${artworkId}`;
-      console.warn('Web3.Storage not configured, using mock IPFS URI');
-    }
+    // Generate mock IPFS URI (IPFS pinning can be added later)
+    const metadata_uri = `ipfs://QmMock${artworkId}`;
+    console.log(`✅ Metadata URI created: ${metadata_uri}`);
 
     // Update artwork record with metadata URI
     const { error: updateError } = await supabase
