@@ -2,6 +2,10 @@
 
 A microservices-based decentralized art museum platform that enables artists to upload digital art, mint NFTs on Sepolia, and showcase their work in a community-driven gallery. Artworks require community validation (3+ votes) before they can be minted as NFTs.
 
+# Demo Video (screen recording)
+
+https://github.com/user-attachments/assets/81f40737-f358-4fa5-bc57-7a7f058656c1
+
 ## 🏗️ Architecture
 
 Aetheria is built as a microservices architecture with a React frontend and 5 independent backend services.
@@ -287,10 +291,6 @@ cd services/auth-service && npm test
 cd services/voting-service && npm test
 # etc.
 ```
-
-## 📦 Deployment
-
-See [infra/README-deploy.md](infra/README-deploy.md) for detailed deployment instructions.
 
 ### Quick Deploy Overview
 
